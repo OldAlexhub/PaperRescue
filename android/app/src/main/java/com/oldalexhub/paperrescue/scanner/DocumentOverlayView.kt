@@ -48,8 +48,8 @@ class DocumentOverlayView @JvmOverloads constructor(
         val offsetX = (width - sourceWidth * scale) / 2f
         val offsetY = (height - sourceHeight * scale) / 2f
 
-        fun mapX(x: Double) = (x * scale + offsetX)
-        fun mapY(y: Double) = (y * scale + offsetY)
+        fun mapX(x: Double) = (x * scale + offsetX).toFloat()
+        fun mapY(y: Double) = (y * scale + offsetY).toFloat()
 
         val path = Path()
         points.forEachIndexed { index, p ->

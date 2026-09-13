@@ -75,7 +75,7 @@ class AdManagerImpl {
     this.interstitial = ad;
     try {
       ad.load();
-    } catch (e) {
+    } catch {
       this.interstitialLoaded = false;
     }
   }
@@ -107,7 +107,7 @@ class AdManagerImpl {
         this.state.lastInterstitialAtMs = Date.now();
         this.state.sessionsSinceLastInterstitial = 0;
         this.state.hasShownFirstInterstitial = true;
-      } catch (e) {
+      } catch {
         // If showing fails for any reason, just continue — never block the user.
       }
     }

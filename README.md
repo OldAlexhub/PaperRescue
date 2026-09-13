@@ -1,97 +1,113 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# PaperRescue: PDF Scanner & OCR
 
-# Getting Started
+**Scan it. Rescue it. PDF it.**
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+A production Android document scanner built with bare React Native + native Kotlin. Unlimited scanning, Rescue Scan (multi-frame capture fusion), on-device OCR, multi-page PDF export, and a local-only document library — completely free, no watermark, no account, no backend.
 
-## Step 1: Start Metro
+- Package: `com.oldalexhub.paperrescue`
+- Platform: Android only (minSdk 24, targetSdk 36)
+- Framework: Bare React Native 0.87 (New Architecture / Hermes)
+- Monetization: Google Mobile Ads (AdMob) — banners + capped interstitials
+- Developer: Old Alex Hub
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Why native Kotlin, not just JS
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+Document scanning is a computer-vision problem, so the vision-heavy work is implemented in Kotlin, called from React Native through a set of focused native modules:
 
-```sh
-# Using npm
-npm start
+| Concern | Implementation |
+|---|---|
+| Camera capture (Normal Scan + Rescue Scan) | CameraX, in a dedicated full-screen `ScannerActivity` (native, not a RN screen) |
+| Document edge detection, perspective correction, enhancement filters | OpenCV (`org.opencv:opencv`), in `vision/DocScanCV.kt` |
+| Rescue Scan multi-frame fusion | ORB feature matching + homography alignment, sharpness/glare scoring, and masked compositing — `vision/RescueFusion.kt`. Falls back to "best single frame, enhanced" if frames can't be reliably aligned; never invents detail. |
+| OCR | Google ML Kit on-device text recognition — `modules/OcrModule.kt` |
+| PDF export | Android's own `android.graphics.pdf.PdfDocument`, with a best-effort invisible text layer for searchability — `modules/PdfModule.kt` |
+| File I/O, gallery import, sharing/"Save As" | Native modules using Android's system pickers (Photo Picker / SAF) so no broad storage permission is ever requested |
 
-# OR using Yarn
-yarn start
+JS/TypeScript (`src/`) owns navigation, the document/library data model, settings, ads orchestration, and all screen UI.
+
+## Project layout
+
+```
+PaperRescue/
+  android/                     Native Android project
+    app/src/main/java/com/oldalexhub/paperrescue/
+      core/                    PaperRescuePackage (registers native modules)
+      modules/                 FileSystem, Gallery, Scanner, DocumentProcessing,
+                                RescueFusion, Quality, Ocr, Pdf, Share
+      scanner/                 ScannerActivity + live-preview overlay
+      vision/                  DocScanCV, RescueFusion, QualityAnalyzer (pure OpenCV)
+      util/                    Paths, BitmapIO
+  src/
+    ads/                       AdMob config + frequency-capped interstitial manager
+    components/                ScreenContainer, SafeScrollView, SafeBottomBar,
+                                SafeAdContainer, KeyboardSafeScreen, Icon, Button, ...
+    data/                      Local JSON-file document repository (library.json)
+    hooks/                     useDocument, useDocumentSize
+    logic/                     pageIngest.ts (capture/import → enhance → OCR → quality)
+    native/                    Typed wrappers around every native module
+    navigation/                React Navigation stack
+    screens/                   Home, Scanner, PageReview, DocumentEditor, Export,
+                                Library, OcrText, Settings, Crop
+    state/                     Zustand stores (documents, settings)
+    theme/                     Colors, typography, spacing
+  assets/logo.png               App icon source (also used to generate all densities)
+  scripts/generate_icons.py     Regenerates every launcher icon density from assets/logo.png
+  store_assets/                 Play Store listing copy, data safety notes, screenshots plan
+  release.py                    Windows-first build/sign/package automation
+  PRIVACYPOLICY.md
 ```
 
-## Step 2: Build and run your app
+## Local data model
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+Everything lives in Android app-private storage — no runtime storage permission is ever requested:
 
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```
+<filesDir>/documents/library.json          Document + page metadata (single JSON index)
+<filesDir>/documents/settings.json         App settings
+<filesDir>/documents/ad_state.json         Interstitial frequency-cap state
+<filesDir>/documents/<docId>/pages/
+    <pageId>_raw.jpg                        Uncropped capture (kept for manual re-crop)
+    <pageId>_base.jpg                       Perspective-corrected, unenhanced source
+    <pageId>_processed.jpg                  Current enhanced version (what you see/export)
+    <pageId>_thumb.jpg                      Library thumbnail
+<cacheDir>/captures, imports, exports, rescue_burst/   Transient working files, cleaned up after use
 ```
 
-### iOS
+Full-resolution images are never base64-encoded across the JS bridge — only file paths cross it, and every image load is downsampled to a bounded working resolution (`BitmapIO.MAX_PAGE_DIMENSION` / `MAX_ANALYSIS_DIMENSION`), so a 50-page document never forces more than one full-resolution bitmap into memory at a time.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+Document corners are stored as **normalized (0–1) fractions** of image width/height rather than pixel coordinates, so they stay valid across every resolution an image gets reloaded at (capture, analysis, crop, re-warp).
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+## Building it yourself
 
-```sh
-bundle install
+You need **Android Studio** (for its bundled JDK and SDK) on Windows. Everything else — locating the project, configuring `JAVA_HOME`/`ANDROID_HOME`, writing `local.properties`, generating a release signing key, building, and packaging — is handled by `release.py`:
+
+```powershell
+python release.py --check-env      # verify JDK/SDK are found before doing anything else
+python release.py                  # full build: signed APK + AAB + packaged release folder
 ```
 
-Then, and every time you update your native dependencies, run:
+See `python release.py --help` for every flag (`--generate-key-only`, `--skip-build`, `--skip-screenshots`, `--screenshots-only`, `--clean`, `--no-clean`).
 
-```sh
-bundle exec pod install
+To run from source during development:
+
+```powershell
+npm install
+npx react-native start
+# in a second terminal, with an emulator/device connected:
+npx react-native run-android
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### Regenerating the app icon
 
-```sh
-# Using npm
-npm run ios
+If you replace `assets/logo.png`, regenerate every launcher icon density (legacy + adaptive) with:
 
-# OR using Yarn
-yarn ios
+```powershell
+python scripts/generate_icons.py
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Known limitations
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- **iOS is not configured.** This is an Android-only build per the product spec; the default `ios/` folder from the RN template is untouched and unsupported.
+- **Scan Quality Score is a heuristic**, calibrated by feel from blur/glare/brightness/shadow/perspective/resolution signals (plus OCR word density when available) — it is explicitly not a scientific measurement, and the UI never claims otherwise.
+- **ML Kit's on-device text recognizer does not expose a true confidence score**, so the "OCR confidence" quality factor is approximated from recognized word density rather than a native confidence value. OCR text itself is never invented — a page with no recognizable text simply reports none.
+- **Searchable PDF text is best-effort**: OCR line boxes are drawn as fully transparent, width-matched text over the page image (the standard technique used by most OCR-to-PDF tools). Rendering support for invisible text layers varies slightly by PDF viewer, but the page always displays and prints correctly regardless.

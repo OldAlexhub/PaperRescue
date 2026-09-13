@@ -41,26 +41,31 @@ interface SecondaryProps {
   label: string;
   onPress: (e: GestureResponderEvent) => void;
   disabled?: boolean;
+  loading?: boolean;
   icon?: IconName;
   fullWidth?: boolean;
   tone?: 'default' | 'danger';
 }
 
-export function SecondaryButton({ label, onPress, disabled, icon, fullWidth = true, tone = 'default' }: SecondaryProps) {
+export function SecondaryButton({ label, onPress, disabled, loading, icon, fullWidth = true, tone = 'default' }: SecondaryProps) {
   const color = tone === 'danger' ? colors.danger : colors.textPrimary;
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={disabled || loading}
       style={({ pressed }) => [
         styles.secondary,
         { opacity: pressed ? 0.7 : disabled ? 0.5 : 1, borderColor: tone === 'danger' ? colors.danger : colors.border },
         fullWidth && { alignSelf: 'stretch' },
       ]}>
-      <View style={styles.row}>
-        {icon && <Icon name={icon} size={18} color={color} />}
-        <Text style={[styles.secondaryLabel, { color }, icon && { marginLeft: spacing.sm }]}>{label}</Text>
-      </View>
+      {loading ? (
+        <ActivityIndicator color={color} />
+      ) : (
+        <View style={styles.row}>
+          {icon && <Icon name={icon} size={18} color={color} />}
+          <Text style={[styles.secondaryLabel, { color }, icon && { marginLeft: spacing.sm }]}>{label}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }

@@ -11,6 +11,7 @@ import { LoadingOverlay } from '../components/LoadingOverlay';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { DocumentProcessing } from '../native/DocumentProcessing';
+import { FileSystem } from '../native/FileSystem';
 import * as repo from '../data/repository';
 import { useDocument } from '../hooks/useDocument';
 import { generateId } from '../utils/id';
@@ -54,35 +55,6 @@ export function CropScreen() {
     setImageLayout({ x, y, width, height });
   }
 
-  function updateCorner(index: number, dx: number, dy: number) {
-    setCorners(prev => {
-      const next = [...prev];
-      const current = next[index];
-      next[index] = {
-        x: clamp01(current.x + dx / imageLayout.width),
-        y: clamp01(current.y + dy / imageLayout.height),
-      };
-      return next;
-    });
-  }
-
-  const panResponders = useMemo(
-    () =>
-      [0, 1, 2, 3].map(index =>
-        PanResponder.create({
-          onStartShouldSetPanResponder: () => true,
-          onMoveShouldSetPanResponder: () => true,
-          onPanResponderMove: (_evt, gesture) => {
-            updateCorner(index, gesture.dx, gesture.dy);
-          },
-          onPanResponderRelease: () => {
-            // Reset the responder's internal delta base by re-triggering layout state via corners already applied.
-          },
-        }),
-      ),
-    [imageLayout.width, imageLayout.height],
-  );
-
   // PanResponder reports cumulative dx/dy from gesture start, so we need a stable
   // "start" snapshot per gesture rather than applying dx/dy directly each move.
   const gestureStart = useRef<NormalizedPoint[]>(corners);
@@ -119,9 +91,11 @@ export function CropScreen() {
       const dirs = await getAppDirectories();
       const outPath = capturePath(dirs, `${generateId()}_crop.jpg`);
       const warped = await DocumentProcessing.warpPerspective(sourcePath, flat, outPath);
-      await repo.updatePage(pageId, {});
       // Overwrite the page's base image in place, then re-render the current filter on top of it.
-      await DocumentProcessing.copyOver?.(warped.path, page.baseImagePath);
+      await FileSystem.copyFile(warped.path, page.baseImagePath);
+      await DocumentProcessing.enhance(page.baseImagePath, page.processedImagePath, page.enhance);
+      await DocumentProcessing.generateThumbnail(page.processedImagePath, page.thumbnailPath, 360);
+      await repo.updatePage(pageId, { corners: flat });
       navigation.goBack();
     } catch (e) {
       Alert.alert('Crop failed', friendlyErrorMessage(e));

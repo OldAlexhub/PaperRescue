@@ -37,7 +37,7 @@ class ShareModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun shareFile(path: String, mimeType: String, title: String, promise: Promise) {
         try {
-            val activity = currentActivity
+            val activity = reactContext.currentActivity
             if (activity == null) {
                 promise.reject("E_NO_ACTIVITY", "App is not in the foreground.")
                 return
@@ -58,7 +58,7 @@ class ShareModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun shareFiles(paths: ReadableArray, mimeType: String, title: String, promise: Promise) {
         try {
-            val activity = currentActivity
+            val activity = reactContext.currentActivity
             if (activity == null) {
                 promise.reject("E_NO_ACTIVITY", "App is not in the foreground.")
                 return
@@ -81,7 +81,7 @@ class ShareModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun openFile(path: String, mimeType: String, promise: Promise) {
         try {
-            val activity = currentActivity
+            val activity = reactContext.currentActivity
             if (activity == null) {
                 promise.reject("E_NO_ACTIVITY", "App is not in the foreground.")
                 return
@@ -101,7 +101,7 @@ class ShareModule(private val reactContext: ReactApplicationContext) :
     /** "Save locally" — lets the user pick exactly where to save via Android's own Storage Access Framework picker. */
     @ReactMethod
     fun saveAs(sourcePath: String, suggestedName: String, mimeType: String, promise: Promise) {
-        val activity = currentActivity
+        val activity = reactContext.currentActivity
         if (activity == null) {
             promise.reject("E_NO_ACTIVITY", "App is not in the foreground.")
             return
@@ -126,7 +126,7 @@ class ShareModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode != REQUEST_CODE_SAVE_AS) return
         val promise = pendingSavePromise ?: return
         val sourcePath = pendingSaveSourcePath
@@ -154,7 +154,7 @@ class ShareModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {}
+    override fun onNewIntent(intent: Intent) {}
 
     companion object {
         private const val REQUEST_CODE_SAVE_AS = 9423

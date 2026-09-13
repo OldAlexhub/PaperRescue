@@ -97,6 +97,10 @@ class ScannerActivity : AppCompatActivity() {
         analysisExecutor = Executors.newSingleThreadExecutor()
 
         bindViews()
+        // TextureView instead of SurfaceView: keeps the overlaid controls' touch
+        // dispatch fully normal (SurfaceView's separate compositor window can
+        // otherwise confuse hit-testing under overlapping siblings on some devices).
+        previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         mode = if (intent.getStringExtra(EXTRA_MODE) == "rescue") Mode.RESCUE else Mode.NORMAL
         val pageNumber = intent.getIntExtra(EXTRA_PAGE_NUMBER, 1)
         pageCounterText.text = getString(R.string.scanner_page_format, pageNumber)
@@ -305,8 +309,8 @@ class ScannerActivity : AppCompatActivity() {
         capture.targetRotation = windowManager.defaultDisplay.rotation
         val options = ImageCapture.OutputFileOptions.Builder(target).build()
         capture.takePicture(
-            ContextCompat.getMainExecutor(this),
             options,
+            ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     continuation.resume(target)

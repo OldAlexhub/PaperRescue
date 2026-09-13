@@ -11,6 +11,7 @@ import { finalizePage, ingestImportedImage } from '../logic/pageIngest';
 import * as repo from '../data/repository';
 import { useSettingsStore } from '../state/settingsStore';
 import { friendlyErrorMessage } from '../utils/errors';
+import { AdManager } from '../ads/AdManager';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Scanner'>;
 type Rt = { params: RootStackParamList['Scanner'] };
@@ -25,12 +26,15 @@ export function ScannerScreen() {
 
   useEffect(() => {
     if (!loaded) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
   useEffect(() => {
     if (!loaded || startedRef.current) return;
     startedRef.current = true;
     runScan();
+    // Guarded by startedRef so this only ever fires once, right when settings finish loading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
   async function abandonIfEmptyAndGoBack() {
@@ -57,6 +61,7 @@ export function ScannerScreen() {
           settings,
         );
         setProcessingLabel(null);
+        if (mode === 'rescue') AdManager.recordCompletedSession('rescue_completed');
         navigation.replace('PageReview', { docId, pageId: page.id });
       } else if (result.status === 'use_gallery') {
         const picked = await Gallery.pickImages(1);

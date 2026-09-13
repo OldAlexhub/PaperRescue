@@ -24,7 +24,7 @@ class ScannerModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun startScan(mode: String, pageNumber: Int, promise: Promise) {
-        val activity = currentActivity
+        val activity = reactContext.currentActivity
         if (activity == null) {
             promise.reject("E_NO_ACTIVITY", "App is not in the foreground.")
             return
@@ -46,7 +46,7 @@ class ScannerModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode != REQUEST_CODE) return
         val promise = pendingPromise ?: return
         pendingPromise = null
@@ -90,7 +90,7 @@ class ScannerModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {}
+    override fun onNewIntent(intent: Intent) {}
 
     companion object {
         private const val REQUEST_CODE = 9422

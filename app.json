@@ -1,4 +1,7 @@
 {
   "name": "PaperRescue",
-  "displayName": "PaperRescue"
+  "displayName": "PaperRescue",
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-7831002909037560~7406234727"
+  }
 }

@@ -10,7 +10,6 @@ import { Header } from '../components/Header';
 import { EmptyState } from '../components/EmptyState';
 import { IconButton, PrimaryButton, SecondaryButton } from '../components/Button';
 import { Icon } from '../components/Icon';
-import { LoadingOverlay } from '../components/LoadingOverlay';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
@@ -35,16 +34,8 @@ export function OcrTextScreen() {
   const [query, setQuery] = useState('');
   const [runningOcrFor, setRunningOcrFor] = useState<string | null>(null);
 
-  if (!document) {
-    return (
-      <ScreenContainer>
-        <Header title="OCR / Text" onBack={() => navigation.goBack()} />
-      </ScreenContainer>
-    );
-  }
-
-  const page = document.pages[pageIndex];
-  const anyOcr = document.pages.some(p => p.ocr);
+  const page = document?.pages[pageIndex];
+  const anyOcr = document?.pages.some(p => p.ocr) ?? false;
 
   const highlightedParagraphs = useMemo(() => {
     const text = page?.ocr?.text ?? '';
@@ -66,6 +57,14 @@ export function OcrTextScreen() {
     }
     return parts;
   }, [page?.ocr?.text, query]);
+
+  if (!document) {
+    return (
+      <ScreenContainer>
+        <Header title="OCR / Text" onBack={() => navigation.goBack()} />
+      </ScreenContainer>
+    );
+  }
 
   async function runOcrForCurrentPage() {
     if (!page) return;
@@ -89,7 +88,7 @@ export function OcrTextScreen() {
 
   async function shareText() {
     const text = page?.ocr?.text;
-    if (!text || !page) return;
+    if (!text || !page || !document) return;
     try {
       const dirs = await getAppDirectories();
       const path = `${dirs.exportsDir}/${sanitizeFileName(document.name)}_page${pageIndex + 1}.txt`;

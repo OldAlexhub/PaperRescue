@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { SafeScrollView } from '../components/SafeScrollView';
@@ -35,9 +35,16 @@ export function HomeScreen() {
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
-    refresh();
     if (!settingsLoaded) loadSettings();
+    // Settings only need loading once per app session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   async function startScan(mode: 'single' | 'rescue') {
     try {

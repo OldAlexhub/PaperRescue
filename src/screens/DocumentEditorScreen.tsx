@@ -101,7 +101,7 @@ export function DocumentEditorScreen() {
   }
 
   async function addPage() {
-    navigation.navigate('Scanner', { docId, pageNumber: document.pages.length + 1, mode: 'single' });
+    navigation.navigate('Scanner', { docId, pageNumber: (document?.pages.length ?? 0) + 1, mode: 'single' });
   }
 
   async function importMorePhotos() {

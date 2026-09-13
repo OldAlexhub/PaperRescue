@@ -24,6 +24,7 @@ import { Scanner } from '../native/Scanner';
 import { useSettingsStore } from '../state/settingsStore';
 import { EnhanceSettings } from '../types/document';
 import { friendlyErrorMessage } from '../utils/errors';
+import { AdManager } from '../ads/AdManager';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'PageReview'>;
 type Rt = { params: RootStackParamList['PageReview'] };
@@ -45,6 +46,8 @@ export function PageReviewScreen() {
 
   React.useEffect(() => {
     if (page && !enhance) setEnhance(page.enhance);
+    // Only seed local state from the page once — subsequent edits are local until applyEnhance persists them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   if (!document || !page || !enhance) {
@@ -74,7 +77,7 @@ export function PageReviewScreen() {
     if (!page) return;
     try {
       await DocumentProcessing.generateThumbnail(page.processedImagePath, page.thumbnailPath, 360);
-    } catch (e) {
+    } catch {
       // Thumbnail regen failing is non-critical — the full page image is still correct.
     }
   }
@@ -137,12 +140,13 @@ export function PageReviewScreen() {
     navigation.navigate('Scanner', {
       docId,
       pageNumber: (document?.pages.length ?? 0) + 1,
-      mode: page.rescue ? 'rescue' : 'single',
+      mode: page?.rescue ? 'rescue' : 'single',
     });
   }
 
   async function handleDone() {
     await finishAndRegenerateThumbnail();
+    AdManager.recordCompletedSession('scan_saved');
     navigation.navigate('DocumentEditor', { docId });
   }
 

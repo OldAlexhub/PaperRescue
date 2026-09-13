@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, ViewProps } from 'react-native';
+import { StyleSheet, ViewProps } from 'react-native';
 import { SafeAreaView, Edge } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 
