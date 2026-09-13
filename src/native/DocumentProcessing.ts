@@ -4,6 +4,8 @@ import { EnhanceSettings } from '../types/document';
 interface CornersResult {
   corners: number[] | null;
   detected: boolean;
+  confidence: number;
+  source: string;
   analyzedWidth: number;
   analyzedHeight: number;
 }

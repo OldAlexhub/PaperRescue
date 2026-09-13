@@ -37,6 +37,9 @@ local.properties
 keystore.properties
 .kotlin/
 
+# release.py output (signed builds are large binaries, regenerate via release.py instead of committing)
+/releases/
+
 # node.js
 #
 node_modules/

@@ -18,7 +18,8 @@ import { Page } from '../types/document';
 import * as repo from '../data/repository';
 import { DocumentProcessing } from '../native/DocumentProcessing';
 import { Gallery } from '../native/Gallery';
-import { ingestImportedImage } from '../logic/pageIngest';
+import { MlkitScanner } from '../native/MlkitScanner';
+import { ingestImportedImage, ingestMlkitScannedPages } from '../logic/pageIngest';
 import { useSettingsStore } from '../state/settingsStore';
 import { useDocumentStore } from '../state/documentStore';
 import { friendlyErrorMessage } from '../utils/errors';
@@ -101,6 +102,25 @@ export function DocumentEditorScreen() {
   }
 
   async function addPage() {
+    // Same ML-Kit-first, custom-scanner-fallback flow as the Home screen's
+    // Scan Document button — see HomeScreen.startScan for the rationale.
+    try {
+      const result = await MlkitScanner.startScan();
+      if (result.status === 'cancelled') return;
+      if (result.pages && result.pages.length > 0) {
+        setBusyLabel('Processing scan…');
+        try {
+          await ingestMlkitScannedPages(docId, result.pages, settings);
+        } finally {
+          setBusyLabel(null);
+        }
+        await refresh();
+        await refreshLibrary();
+      }
+      return;
+    } catch (e) {
+      console.warn('PaperRescue: ML Kit scanner unavailable, falling back', e);
+    }
     navigation.navigate('Scanner', { docId, pageNumber: (document?.pages.length ?? 0) + 1, mode: 'single' });
   }
 

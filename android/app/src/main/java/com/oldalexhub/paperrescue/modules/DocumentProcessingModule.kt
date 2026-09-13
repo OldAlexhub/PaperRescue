@@ -58,15 +58,18 @@ class DocumentProcessingModule(reactContext: ReactApplicationContext) :
             try {
                 val bitmap = BitmapIO.loadBitmap(imagePath, BitmapIO.MAX_ANALYSIS_DIMENSION)
                 val mat = BitmapIO.bitmapToMat(bitmap)
-                val quad = DocScanCV.findDocumentQuad(mat)
+                val detection = DocScanCV.detectDocument(mat)
+                val quad = detection.quad
                 val result = Arguments.createMap()
                 if (quad != null) {
                     result.putArray("corners", quadToNormalizedArray(quad, bitmap.width, bitmap.height))
-                    result.putBoolean("detected", true)
+                    result.putBoolean("detected", detection.isConfident)
                 } else {
                     result.putNull("corners")
                     result.putBoolean("detected", false)
                 }
+                result.putDouble("confidence", detection.confidence)
+                result.putString("source", detection.source.name.lowercase())
                 result.putInt("analyzedWidth", bitmap.width)
                 result.putInt("analyzedHeight", bitmap.height)
                 mat.release(); bitmap.recycle()

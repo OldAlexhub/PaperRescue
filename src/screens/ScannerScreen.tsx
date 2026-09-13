@@ -62,7 +62,11 @@ export function ScannerScreen() {
         );
         setProcessingLabel(null);
         if (mode === 'rescue') AdManager.recordCompletedSession('rescue_completed');
-        navigation.replace('PageReview', { docId, pageId: page.id });
+        navigation.replace('PageReview', {
+          docId,
+          pageId: page.id,
+          adjustCrop: result.needsManualCrop,
+        });
       } else if (result.status === 'use_gallery') {
         const picked = await Gallery.pickImages(1);
         if (picked.length > 0) {

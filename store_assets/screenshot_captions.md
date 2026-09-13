@@ -1,45 +1,33 @@
-# Play Store Screenshot Captions
+# Play Store Screenshots
 
-Suggested capture order and captions for the phone screenshot set (Play Console recommends 4–8 screenshots, 16:9 or 9:16, min 320px).
+Real captures from a running build live in `store_assets/screenshots/`. Suggested captions for the Play Console listing:
 
-1. **Home screen**
+1. **`01_home.png` — Home**
    Caption: "Scan it. Rescue it. PDF it."
    Sub-caption: "Your documents, organized and ready in one tap."
 
-2. **Scanner in action (Normal Scan)**
+2. **`02_scanner.png` — Scanner**
    Caption: "Automatic edge detection, every time."
-   Sub-caption: "PaperRescue finds the page and keeps it straight."
+   Sub-caption: "Normal Scan or Rescue Scan — pick your mode and go."
 
-3. **Rescue Scan mode selector / capture**
-   Caption: "Bad lighting? Rescue Scan has you covered."
-   Sub-caption: "Multiple frames, fused into your best possible page."
+3. **`03_page_review.png` — Page Review**
+   Caption: "Fine-tune every page."
+   Sub-caption: "Original, Enhanced, Grayscale, or B&W, plus brightness, contrast, sharpen, and noise controls."
 
-4. **Page Review with Quality Score**
-   Caption: "Know your scan is good before you move on."
-   Sub-caption: "Instant quality score with plain-language feedback."
-
-5. **Document Editor with multi-page grid**
+4. **`04_document_editor.png` — Document Editor**
    Caption: "Reorder, rotate, and manage every page."
    Sub-caption: "No page limit. Ever."
 
-6. **Enhancement filters (Original / Enhanced / Grayscale / B&W)**
-   Caption: "Four looks for every page."
-   Sub-caption: "Brightness, contrast, sharpen, and noise control included."
-
-7. **OCR / Text screen**
-   Caption: "Turn photos into searchable, copyable text."
-   Sub-caption: "On-device OCR — no internet required."
-
-8. **Export screen**
+5. **`05_export.png` — Export**
    Caption: "Export clean PDFs. No watermark. Ever."
-   Sub-caption: "Original, Balanced, or Smaller file size — your choice."
+   Sub-caption: "Original, Balanced, or Smaller file size — your choice, with searchable text from OCR."
 
-## Feature graphic (1024×500) direction
+Before submitting, capture a few more to round out the set (Play Console accepts up to 8): Rescue Scan's mode selector highlighted, the OCR/Text screen, and the Library list. These weren't captured in this batch because the source emulator session ended, but the app screens themselves are complete and ready to screenshot — see `PaperRescue/README.md` for how to run the app.
 
-Layout: left third — the PaperRescue app icon (life-preserver-and-document mark) on the brand navy-to-rescue-orange gradient background. Center — the wordmark "PaperRescue" in bold, with the tagline "Scan it. Rescue it. PDF it." beneath it in a lighter weight. Right two-thirds — a diagonal collage of 2–3 angled phone screenshots (Scanner live view, Page Review with a visible quality score badge, Document Editor grid), each with a soft drop shadow, slightly overlapping.
+## Feature graphic
 
-Color usage: primary navy (#1E3A5F) as the dominant background, the Rescue Scan orange (#FF7A29) reserved for a single accent — e.g., a subtle glow behind the Rescue Scan screenshot, or the quality score badge color — so it reads as the "signature feature" color without competing with the wordmark.
+`store_assets/feature_graphic.png` (1024×500) is generated from the real app icon, wordmark, and an actual in-app screenshot by `scripts/generate_feature_graphic.py`. Re-run it any time after updating `assets/logo.png` or the screenshots:
 
-Typography: a clean geometric sans-serif, bold weight for "PaperRescue," medium weight for the tagline. Keep all text within the horizontal safe margins (Play Console crops edges on some surfaces).
-
-Avoid: browser chrome, device bezels wider than necessary, and any additional text beyond the wordmark + tagline (Play policy discourages busy feature graphics).
+```powershell
+python scripts/generate_feature_graphic.py
+```

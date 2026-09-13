@@ -7,6 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 import com.oldalexhub.paperrescue.modules.DocumentProcessingModule
 import com.oldalexhub.paperrescue.modules.FileSystemModule
 import com.oldalexhub.paperrescue.modules.GalleryModule
+import com.oldalexhub.paperrescue.modules.MlkitScannerModule
 import com.oldalexhub.paperrescue.modules.OcrModule
 import com.oldalexhub.paperrescue.modules.PdfModule
 import com.oldalexhub.paperrescue.modules.QualityModule
@@ -21,6 +22,7 @@ class PaperRescuePackage : ReactPackage {
         FileSystemModule(reactContext),
         GalleryModule(reactContext),
         ScannerModule(reactContext),
+        MlkitScannerModule(reactContext),
         DocumentProcessingModule(reactContext),
         RescueFusionModule(reactContext),
         QualityModule(reactContext),

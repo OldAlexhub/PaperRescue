@@ -23,6 +23,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Crop'>;
 type Rt = { params: RootStackParamList['Crop'] };
 
 type NormalizedPoint = { x: number; y: number };
+type Rect = { x: number; y: number; width: number; height: number };
 const DEFAULT_CORNERS: NormalizedPoint[] = [
   { x: 0.08, y: 0.08 },
   { x: 0.92, y: 0.08 },
@@ -38,22 +39,38 @@ export function CropScreen() {
   const { document } = useDocument(docId);
   const page = document?.pages.find(p => p.id === pageId);
 
-  const [imageLayout, setImageLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [sourceSize, setSourceSize] = useState({ width: 0, height: 0 });
   const [corners, setCorners] = useState<NormalizedPoint[]>(
     page?.corners && page.corners.length === 8
-      ? [0, 1, 2, 3].map(i => ({ x: page.corners![i * 2], y: page.corners![i * 2 + 1] }))
+      ? orderCorners([0, 1, 2, 3].map(i => ({ x: page.corners![i * 2], y: page.corners![i * 2 + 1] })))
       : DEFAULT_CORNERS,
   );
+  const seededPageId = useRef(page?.id ?? null);
   const cornersRef = useRef(corners);
   cornersRef.current = corners;
   const [saving, setSaving] = useState(false);
 
   const sourcePath = page?.rawImagePath ?? page?.baseImagePath;
 
-  function onImageLayout(e: LayoutChangeEvent) {
-    const { x, y, width, height } = e.nativeEvent.layout;
-    setImageLayout({ x, y, width, height });
+  React.useEffect(() => {
+    if (!page || seededPageId.current === page.id) return;
+    const detected = page.corners && page.corners.length === 8
+      ? orderCorners([0, 1, 2, 3].map(i => ({ x: page.corners![i * 2], y: page.corners![i * 2 + 1] })))
+      : DEFAULT_CORNERS;
+    seededPageId.current = page.id;
+    setCorners(detected);
+  }, [page]);
+
+  function onContainerLayout(e: LayoutChangeEvent) {
+    const { width, height } = e.nativeEvent.layout;
+    setContainerSize({ width, height });
   }
+
+  const imageRect = useMemo(
+    () => containRect(containerSize.width, containerSize.height, sourceSize.width, sourceSize.height),
+    [containerSize, sourceSize],
+  );
 
   // PanResponder reports cumulative dx/dy from gesture start, so we need a stable
   // "start" snapshot per gesture rather than applying dx/dy directly each move.
@@ -67,23 +84,25 @@ export function CropScreen() {
             gestureStart.current = cornersRef.current;
           },
           onPanResponderMove: (_evt, gesture) => {
+            if (imageRect.width <= 0 || imageRect.height <= 0) return;
             setCorners(prev => {
               const next = [...prev];
               const base = gestureStart.current[index];
-              next[index] = {
-                x: clamp01(base.x + gesture.dx / imageLayout.width),
-                y: clamp01(base.y + gesture.dy / imageLayout.height),
+              const proposed = {
+                x: clamp01(base.x + gesture.dx / imageRect.width),
+                y: clamp01(base.y + gesture.dy / imageRect.height),
               };
-              return next;
+              next[index] = proposed;
+              return isValidQuad(next) ? next : prev;
             });
           },
         }),
       ),
-    [imageLayout.width, imageLayout.height],
+    [imageRect.width, imageRect.height],
   );
 
   async function handleConfirm() {
-    if (!page || !sourcePath || imageLayout.width === 0) return;
+    if (!page || !sourcePath || imageRect.width === 0 || !isValidQuad(corners)) return;
     setSaving(true);
     try {
       const flat: number[] = [];
@@ -117,16 +136,19 @@ export function CropScreen() {
     <ScreenContainer edges={['top', 'left', 'right']} background={colors.scannerBackground}>
       <Header title="Adjust Crop" onBack={() => navigation.goBack()} />
       <Text style={styles.hint}>Drag the corners to match the page edges</Text>
-      <View style={styles.imageWrap}>
+      <View style={styles.imageWrap} onLayout={onContainerLayout}>
         <Image
           source={{ uri: `file://${sourcePath}` }}
           style={styles.image}
           resizeMode="contain"
-          onLayout={onImageLayout}
+          onLoad={event => {
+            const { width, height } = event.nativeEvent.source;
+            setSourceSize({ width, height });
+          }}
         />
-        {imageLayout.width > 0 && (
+        {imageRect.width > 0 && (
           <>
-            {buildEdges(corners, imageLayout).map((edge, i) => (
+            {buildEdges(corners, imageRect).map((edge, i) => (
               <View key={i} style={edge} />
             ))}
             {corners.map((c, i) => (
@@ -136,8 +158,8 @@ export function CropScreen() {
                 style={[
                   styles.handle,
                   {
-                    left: imageLayout.x + c.x * imageLayout.width - 16,
-                    top: imageLayout.y + c.y * imageLayout.height - 16,
+                    left: imageRect.x + c.x * imageRect.width - 16,
+                    top: imageRect.y + c.y * imageRect.height - 16,
                   },
                 ]}
               />
@@ -164,7 +186,69 @@ function clamp01(v: number) {
   return Math.max(0, Math.min(1, v));
 }
 
-function buildEdges(corners: NormalizedPoint[], layout: { x: number; y: number; width: number; height: number }) {
+function containRect(containerWidth: number, containerHeight: number, imageWidth: number, imageHeight: number): Rect {
+  if (containerWidth <= 0 || containerHeight <= 0 || imageWidth <= 0 || imageHeight <= 0) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+  const scale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight);
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+  return { x: (containerWidth - width) / 2, y: (containerHeight - height) / 2, width, height };
+}
+
+function polygonArea(points: NormalizedPoint[]) {
+  return Math.abs(points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return sum + point.x * next.y - next.x * point.y;
+  }, 0)) / 2;
+}
+
+function isValidQuad(points: NormalizedPoint[]) {
+  if (points.length !== 4 || polygonArea(points) < 0.025) return false;
+  let winding = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = points[i];
+    const b = points[(i + 1) % 4];
+    const c = points[(i + 2) % 4];
+    const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(cross) < 0.002) return false;
+    const sign = Math.sign(cross);
+    if (winding !== 0 && sign !== winding) return false;
+    winding = sign;
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 0.045) return false;
+  }
+  return true;
+}
+
+function orderCorners(points: NormalizedPoint[]): NormalizedPoint[] {
+  if (points.length !== 4) return DEFAULT_CORNERS;
+  const center = {
+    x: points.reduce((sum, point) => sum + point.x, 0) / 4,
+    y: points.reduce((sum, point) => sum + point.y, 0) / 4,
+  };
+  let cycle = [...points].sort(
+    (a, b) => Math.atan2(a.y - center.y, a.x - center.x) - Math.atan2(b.y - center.y, b.x - center.x),
+  );
+  const signedArea = cycle.reduce((sum, point, index) => {
+    const next = cycle[(index + 1) % 4];
+    return sum + point.x * next.y - next.x * point.y;
+  }, 0);
+  if (signedArea < 0) cycle = cycle.reverse();
+  let topEdge = 0;
+  for (let i = 1; i < 4; i++) {
+    const midpointY = (cycle[i].y + cycle[(i + 1) % 4].y) / 2;
+    const bestY = (cycle[topEdge].y + cycle[(topEdge + 1) % 4].y) / 2;
+    if (midpointY < bestY) topEdge = i;
+  }
+  const a = cycle[topEdge];
+  const b = cycle[(topEdge + 1) % 4];
+  const ordered = a.x <= b.x
+    ? [a, b, cycle[(topEdge + 2) % 4], cycle[(topEdge + 3) % 4]]
+    : [b, a, cycle[(topEdge + 3) % 4], cycle[(topEdge + 2) % 4]];
+  return isValidQuad(ordered) ? ordered : DEFAULT_CORNERS;
+}
+
+function buildEdges(corners: NormalizedPoint[], layout: Rect) {
   const px = (c: NormalizedPoint) => ({
     x: layout.x + c.x * layout.width,
     y: layout.y + c.y * layout.height,

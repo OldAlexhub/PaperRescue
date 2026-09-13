@@ -389,8 +389,10 @@ def maybe_generate_icons(project_root: Path) -> None:
 # --------------------------------------------------------------------------
 
 def releases_dir_for(project_root: Path) -> Path:
-    # Deliberately external to the app's own source tree.
-    return project_root.parent / "releases"
+    # External to Gradle's own build output tree (so `gradlew clean` never
+    # touches it) but kept inside the project root so it's visible in the
+    # editor/workspace rather than one level up and easy to lose track of.
+    return project_root / "releases"
 
 
 def package_release(project_root: Path, version_info: dict, apk_path: Path | None,
@@ -491,7 +493,7 @@ def capture_screenshots(project_root: Path, sdk_dir: Path, count: int, interval:
     device_serial = device_lines[0].split()[0]
     ok(f"Using device: {device_serial}")
 
-    out_dir = project_root.parent / "releases" / "_screenshots_latest"
+    out_dir = releases_dir_for(project_root) / "_screenshots_latest"
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

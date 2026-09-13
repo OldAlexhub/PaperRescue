@@ -17,7 +17,8 @@ import { useSettingsStore } from '../state/settingsStore';
 import { RootStackParamList } from '../navigation/types';
 import * as repo from '../data/repository';
 import { Gallery } from '../native/Gallery';
-import { ingestImportedImage } from '../logic/pageIngest';
+import { MlkitScanner } from '../native/MlkitScanner';
+import { ingestImportedImage, ingestMlkitScannedPages } from '../logic/pageIngest';
 import { friendlyErrorMessage } from '../utils/errors';
 import { pageCountLabel } from '../utils/format';
 
@@ -47,6 +48,40 @@ export function HomeScreen() {
   );
 
   async function startScan(mode: 'single' | 'rescue') {
+    // Normal Scan first tries Google's ML Kit Document Scanner — its live
+    // edge detection, auto-capture, crop and multi-page session come from a
+    // production ML model and give a far more reliable, CamScanner-caliber
+    // result than our own heuristic. Rescue Scan always uses the custom
+    // CameraX + OpenCV burst-fusion pipeline, since multi-frame fusion has
+    // no equivalent in Google's scanner.
+    if (mode === 'single') {
+      try {
+        const result = await MlkitScanner.startScan();
+        if (result.status === 'cancelled') return;
+        if (!result.pages || result.pages.length === 0) return;
+
+        setBusy('Processing scan…');
+        const doc = await repo.createDocument(defaultDocumentName());
+        try {
+          await ingestMlkitScannedPages(doc.id, result.pages, settings);
+        } catch (e) {
+          setBusy(null);
+          await repo.deleteDocument(doc.id);
+          Alert.alert('Could not process scan', friendlyErrorMessage(e));
+          return;
+        }
+        setBusy(null);
+        await refresh();
+        navigation.navigate('DocumentEditor', { docId: doc.id });
+        return;
+      } catch (e) {
+        // E_MLKIT_SCANNER_UNAVAILABLE (unsupported/low-RAM device, Play
+        // Services failure, etc.) — fall back to the custom scanner below
+        // instead of blocking the user from scanning at all.
+        console.warn('PaperRescue: ML Kit scanner unavailable, falling back', e);
+      }
+    }
+
     try {
       const doc = await repo.createDocument(defaultDocumentName());
       navigation.navigate('Scanner', { docId: doc.id, pageNumber: 1, mode });

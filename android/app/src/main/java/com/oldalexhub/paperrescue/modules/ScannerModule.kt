@@ -67,6 +67,8 @@ class ScannerModule(private val reactContext: ReactApplicationContext) :
                     putString("rawImagePath", data.getStringExtra(ScannerActivity.EXTRA_RAW_PATH))
                     putString("correctedImagePath", data.getStringExtra(ScannerActivity.EXTRA_CORRECTED_PATH))
                     putArray("corners", cornersArray)
+                    putDouble("detectionConfidence", data.getDoubleExtra(ScannerActivity.EXTRA_DETECTION_CONFIDENCE, 0.0))
+                    putBoolean("needsManualCrop", data.getBooleanExtra(ScannerActivity.EXTRA_NEEDS_MANUAL_CROP, false))
                 }
 
                 if (data.hasExtra(ScannerActivity.EXTRA_RESCUE_FRAMES_CAPTURED)) {

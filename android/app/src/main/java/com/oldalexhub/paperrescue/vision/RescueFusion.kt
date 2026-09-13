@@ -31,6 +31,7 @@ object RescueFusion {
     data class FrameScore(
         val mat: Mat,
         val quad: DocScanCV.Quad?,
+        val detectionConfidence: Double,
         val sharpness: Double,
         val glareRatio: Double,
         val composite: Double,
@@ -50,16 +51,19 @@ object RescueFusion {
         /** Pixel size of the reference frame [quad]'s points are expressed in (pre-crop), for normalizing corners. */
         val referenceFrameWidth: Int,
         val referenceFrameHeight: Int,
+        val detectionConfidence: Double,
+        val autoCropSucceeded: Boolean,
     )
 
     private fun scoreFrame(mat: Mat): FrameScore {
-        val quad = DocScanCV.findDocumentQuad(mat)
+        val detection = DocScanCV.detectDocumentScaled(mat)
+        val quad = detection.quad
         val sharpness = DocScanCV.sharpnessScore(mat)
         val glare = DocScanCV.glareRatio(mat)
         // Reward sharpness, penalize glare, and strongly prefer frames where a
         // document edge was actually found.
-        val composite = (sharpness / 500.0) - (glare * 40.0) + (if (quad != null) 10.0 else 0.0)
-        return FrameScore(mat, quad, sharpness, glare, composite)
+        val composite = (sharpness / 500.0) - (glare * 40.0) + detection.confidence * 12.0
+        return FrameScore(mat, quad, detection.confidence, sharpness, glare, composite)
     }
 
     private fun alignToReference(reference: FrameScore, candidate: FrameScore): Pair<Mat, Double>? {
@@ -191,8 +195,13 @@ object RescueFusion {
             refGlareMask.release()
         }
 
-        val quad = reference.quad ?: DocScanCV.findDocumentQuad(working) ?: DocScanCV.fullFrameQuad(working)
-        val cropped = DocScanCV.warpToQuad(working, quad)
+        val fallbackDetection = if (reference.quad == null) DocScanCV.detectDocumentScaled(working) else null
+        val initialQuad = reference.quad ?: fallbackDetection?.quad
+        val detectionConfidence = if (reference.quad != null) reference.detectionConfidence else fallbackDetection?.confidence ?: 0.0
+        val autoCropSucceeded = initialQuad != null && detectionConfidence >= DocumentDetectionResult.CONFIDENT_THRESHOLD
+        val quad = initialQuad?.let { QuadRefiner.refineDocumentQuad(working, it).quad }
+            ?: DocScanCV.fullFrameQuad(working)
+        val cropped = if (autoCropSucceeded) DocScanCV.warpToQuad(working, quad) else working.clone()
         working.release()
 
         val illuminationNormalized = DocScanCV.normalizeIllumination(cropped, strength = 0.65)
@@ -223,6 +232,8 @@ object RescueFusion {
             referenceFrameIndex = referenceIndex,
             referenceFrameWidth = referenceFrameWidth,
             referenceFrameHeight = referenceFrameHeight,
+            detectionConfidence = detectionConfidence,
+            autoCropSucceeded = autoCropSucceeded,
         )
     }
 }

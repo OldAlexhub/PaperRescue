@@ -175,4 +175,14 @@ dependencies {
 
     // ML Kit - on-device text recognition (OCR)
     implementation("com.google.mlkit:text-recognition:16.0.1")
+
+    // Google's own ML-based document scanning UI (live edge detection, auto
+    // capture, crop/rotate/filter, multi-page session) for Normal Scan — the
+    // reliability and polish here comes from Google's production ML model,
+    // which a hand-tuned OpenCV heuristic can't match. Rescue Scan keeps its
+    // own custom CameraX + OpenCV pipeline since multi-frame fusion has no
+    // equivalent here.
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
+
+    testImplementation("junit:junit:4.13.2")
 }

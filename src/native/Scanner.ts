@@ -8,6 +8,8 @@ export interface ScanCaptured {
   rawImagePath: string;
   correctedImagePath: string;
   corners: number[];
+  detectionConfidence: number;
+  needsManualCrop: boolean;
   rescueReport?: RescueReport;
 }
 export interface ScanCancelled {

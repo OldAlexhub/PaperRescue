@@ -76,12 +76,14 @@ def main():
 
         print(f"  {density}: legacy {legacy_px}px, adaptive {adaptive_px}px")
 
-    # Play Store listing icon (512x512, full bleed, no alpha needed by policy but kept for editing)
+    # Play Store listing icon: Google requires exactly 512x512, 32-bit PNG
+    # (i.e. an RGBA file — even though our design is fully opaque, the PNG
+    # must carry an alpha channel or Play Console's asset validator rejects it).
     store_dir = os.path.join(ROOT, "store_assets")
     os.makedirs(store_dir, exist_ok=True)
-    listing_icon = logo.resize((512, 512), Image.LANCZOS)
-    listing_icon.convert("RGB").save(os.path.join(store_dir, "play_store_icon_512.png"))
-    print("Wrote store_assets/play_store_icon_512.png")
+    listing_icon = logo.resize((512, 512), Image.LANCZOS).convert("RGBA")
+    listing_icon.save(os.path.join(store_dir, "play_store_icon_512.png"))
+    print("Wrote store_assets/play_store_icon_512.png (512x512, 32-bit RGBA)")
 
     # Adaptive icon XML (mipmap-anydpi-v26) referencing the per-density foreground/background PNGs.
     anydpi_dir = os.path.join(RES_DIR, "mipmap-anydpi-v26")

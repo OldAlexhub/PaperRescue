@@ -4,7 +4,6 @@ import org.opencv.core.Core
 import org.opencv.core.CvType
 import org.opencv.core.Mat
 import org.opencv.core.MatOfDouble
-import org.opencv.core.MatOfPoint
 import org.opencv.core.MatOfPoint2f
 import org.opencv.core.Point
 import org.opencv.core.Rect
@@ -28,60 +27,64 @@ object DocScanCV {
         init { require(points.size == 4) }
     }
 
-    /** Attempts to find the document's 4 corners in [src] (BGR or gray Mat). Returns null if none found. */
+    private val detector: DocumentDetector by lazy { HybridDocumentDetector() }
+
+    fun detectDocument(
+        src: Mat,
+        mode: DetectionMode = DetectionMode.STILL,
+        previousQuad: Quad? = null,
+    ): DocumentDetectionResult = detector.detect(src, mode, previousQuad)
+
+    /** Compatibility wrapper. Prefer [detectDocument] when confidence/diagnostics matter. */
     fun findDocumentQuad(src: Mat): Quad? {
-        val gray = Mat()
-        if (src.channels() > 1) Imgproc.cvtColor(src, gray, Imgproc.COLOR_BGR2GRAY) else src.copyTo(gray)
+        val result = detectDocument(src, DetectionMode.STILL)
+        return result.quad.takeIf { result.isConfident }
+    }
 
-        val blurred = Mat()
-        Imgproc.GaussianBlur(gray, blurred, Size(5.0, 5.0), 0.0)
+    /** Compatibility wrapper using the reduced live representation set. */
+    fun findDocumentQuadFast(src: Mat): Quad? {
+        val result = detectDocument(src, DetectionMode.LIVE)
+        return result.quad.takeIf { result.isConfident }
+    }
 
-        val edges = Mat()
-        Imgproc.Canny(blurred, edges, 50.0, 150.0)
+    /**
+     * Runs [findDocumentQuad] on a downscaled copy of [fullResMat] and scales
+     * the result back up. Detection is both faster and, in practice, no less
+     * accurate at a smaller size (downsampling itself suppresses the kind of
+     * fine background texture that confuses edge detection), so full-res
+     * callers should prefer this over calling [findDocumentQuad] directly.
+     */
+    fun findDocumentQuadScaled(fullResMat: Mat, maxAnalysisDimension: Int = 1000): Quad? {
+        val result = detectDocumentScaled(fullResMat, maxAnalysisDimension)
+        return result.quad.takeIf { result.isConfident }
+    }
 
-        val dilated = Mat()
-        val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(3.0, 3.0))
-        Imgproc.dilate(edges, dilated, kernel)
+    fun detectDocumentScaled(
+        fullResMat: Mat,
+        maxAnalysisDimension: Int = 1000,
+        mode: DetectionMode = DetectionMode.STILL,
+        previousQuad: Quad? = null,
+    ): DocumentDetectionResult {
+        val longEdge = max(fullResMat.rows(), fullResMat.cols())
+        if (longEdge <= maxAnalysisDimension) return detectDocument(fullResMat, mode, previousQuad)
 
-        val contours = mutableListOf<MatOfPoint>()
-        val hierarchy = Mat()
-        Imgproc.findContours(dilated, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE)
-
-        val imageArea = src.rows().toDouble() * src.cols().toDouble()
-        var best: Array<Point>? = null
-        var bestArea = 0.0
-
-        for (contour in contours) {
-            val area = Imgproc.contourArea(contour)
-            if (area < imageArea * 0.15 || area <= bestArea) continue
-
-            val contour2f = MatOfPoint2f(*contour.toArray())
-            val perimeter = Imgproc.arcLength(contour2f, true)
-            val approx2f = MatOfPoint2f()
-            Imgproc.approxPolyDP(contour2f, approx2f, 0.02 * perimeter, true)
-            val approxPoints = approx2f.toArray()
-
-            if (approxPoints.size == 4 && Imgproc.isContourConvex(MatOfPoint(*approxPoints))) {
-                best = approxPoints
-                bestArea = area
-            }
+        val scale = maxAnalysisDimension.toDouble() / longEdge
+        val small = Mat()
+        Imgproc.resize(fullResMat, small, Size(fullResMat.cols() * scale, fullResMat.rows() * scale))
+        val smallPrevious = previousQuad?.let { quad ->
+            Quad(Array(4) { i -> Point(quad.points[i].x * scale, quad.points[i].y * scale) })
         }
+        val result = detectDocument(small, mode, smallPrevious)
+        small.release()
 
-        gray.release(); blurred.release(); edges.release(); dilated.release(); hierarchy.release()
-        contours.forEach { it.release() }
-
-        return best?.let { Quad(orderCorners(it)) }
+        return result.copy(quad = result.quad?.let { quad ->
+            Quad(Array(4) { i -> Point(quad.points[i].x / scale, quad.points[i].y / scale) })
+        })
     }
 
     /** Orders 4 arbitrary points as top-left, top-right, bottom-right, bottom-left. */
     fun orderCorners(points: Array<Point>): Array<Point> {
-        val sorted = points.sortedBy { it.x + it.y }
-        val tl = sorted.first()
-        val br = sorted.last()
-        val remaining = points.filter { it !== tl && it !== br }
-        val tr = remaining.maxByOrNull { it.x - it.y } ?: remaining[0]
-        val bl = remaining.minByOrNull { it.x - it.y } ?: remaining[1]
-        return arrayOf(tl, tr, br, bl)
+        return QuadGeometry.orderCorners(points)
     }
 
     /** Full-frame quad (used as a fallback when no document edge is detected). */
@@ -98,14 +101,29 @@ object DocScanCV {
 
     /** Perspective-corrects [src] to a flat rectangle using the 4 [quad] corners. */
     fun warpToQuad(src: Mat, quad: Quad): Mat {
-        val (tl, tr, br, bl) = quad.points
+        require(!src.empty()) { "Cannot warp an empty image." }
+        val ordered = orderCorners(quad.points)
+        val validation = QuadGeometry.validate(ordered, src.cols(), src.rows())
+        require(validation.valid) { "Invalid document corners: ${validation.reason}" }
+        val (tl, tr, br, bl) = ordered
         val widthTop = distance(tl, tr)
         val widthBottom = distance(bl, br)
         val heightLeft = distance(tl, bl)
         val heightRight = distance(tr, br)
 
-        val outWidth = max(widthTop, widthBottom).toInt().coerceAtLeast(1)
-        val outHeight = max(heightLeft, heightRight).toInt().coerceAtLeast(1)
+        var outWidth = max(widthTop, widthBottom).toInt()
+        var outHeight = max(heightLeft, heightRight).toInt()
+        require(outWidth >= 8 && outHeight >= 8) { "Perspective output is too small." }
+        val aspect = max(outWidth.toDouble() / outHeight, outHeight.toDouble() / outWidth)
+        require(aspect <= 12.0) { "Perspective output has an implausible aspect ratio." }
+
+        val dimensionCap = max(src.cols(), src.rows()) * 2
+        val pixelCap = min(80_000_000L, src.cols().toLong() * src.rows().toLong() * 3L)
+        val scaleForDimension = min(1.0, dimensionCap.toDouble() / max(outWidth, outHeight))
+        val scaleForPixels = min(1.0, kotlin.math.sqrt(pixelCap.toDouble() / (outWidth.toLong() * outHeight).toDouble()))
+        val safeScale = min(scaleForDimension, scaleForPixels)
+        outWidth = (outWidth * safeScale).toInt().coerceAtLeast(8)
+        outHeight = (outHeight * safeScale).toInt().coerceAtLeast(8)
 
         val srcMat = MatOfPoint2f(tl, tr, br, bl)
         val dstMat = MatOfPoint2f(
@@ -231,16 +249,28 @@ object DocScanCV {
 
     fun applyEnhancements(src: Mat, options: EnhanceOptions): Mat {
         var working = src.clone()
+        val isEnhanced = options.mode == "enhanced"
 
-        if (options.whitenBackground || options.reduceShadow || options.mode == "enhanced") {
-            val normalized = normalizeIllumination(working, strength = if (options.mode == "enhanced") 0.85 else 0.6)
+        if (options.whitenBackground || options.reduceShadow || isEnhanced) {
+            val normalized = normalizeIllumination(working, strength = if (isEnhanced) 0.85 else 0.6)
             working.release()
             working = normalized
         }
 
-        if (options.denoise > 0) {
+        // "Enhanced" gets a baseline local-contrast boost so text is crisp
+        // out of the box — without this, a page with every slider left at 0
+        // only got illumination normalization and looked flat/soft.
+        if (isEnhanced) {
+            val contrasted = claheContrast(working, clipLimit = 2.6)
+            working.release()
+            working = contrasted
+        }
+
+        // Baseline denoise for Enhanced mode, plus whatever the user dialed in.
+        val denoiseAmount = options.denoise.coerceIn(0, 100) + (if (isEnhanced) 12 else 0)
+        if (denoiseAmount > 0) {
             val denoised = Mat()
-            val strength = options.denoise.coerceIn(0, 100)
+            val strength = denoiseAmount.coerceAtMost(100)
             val d = 5 + (strength / 100.0 * 4).toInt()
             val sigma = 20.0 + strength * 0.8
             Imgproc.bilateralFilter(working, denoised, d, sigma, sigma)
@@ -257,8 +287,10 @@ object DocScanCV {
             working = adjusted
         }
 
-        if (options.sharpen > 0) {
-            val sharpened = unsharpMask(working, amount = options.sharpen / 100.0)
+        // Baseline sharpen for Enhanced mode, plus whatever the user dialed in.
+        val sharpenAmount = options.sharpen.coerceIn(0, 100) + (if (isEnhanced) 22 else 0)
+        if (sharpenAmount > 0) {
+            val sharpened = unsharpMask(working, amount = sharpenAmount.coerceAtMost(100) / 100.0)
             working.release()
             working = sharpened
         }

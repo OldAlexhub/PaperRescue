@@ -50,6 +50,12 @@ export function PageReviewScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
+  React.useEffect(() => {
+    if (!page || !route.params.adjustCrop) return;
+    navigation.setParams({ adjustCrop: false });
+    navigation.navigate('Crop', { docId, pageId });
+  }, [docId, navigation, page, pageId, route.params.adjustCrop]);
+
   if (!document || !page || !enhance) {
     return (
       <ScreenContainer>
@@ -128,6 +134,9 @@ export function PageReviewScreen() {
       setPreviewVersion(v => v + 1);
       setDismissedWarning(false);
       await refresh();
+      if (result.needsManualCrop) {
+        navigation.navigate('Crop', { docId, pageId: page.id });
+      }
     } catch (e) {
       Alert.alert('Retake failed', friendlyErrorMessage(e));
     } finally {
