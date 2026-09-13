@@ -1,3 +1,18 @@
 <resources>
     <string name="app_name">PaperRescue</string>
+
+    <string name="scanner_close">Close scanner</string>
+    <string name="scanner_flash">Toggle flash</string>
+    <string name="scanner_import_gallery">Import from gallery</string>
+    <string name="scanner_capture">Capture page</string>
+    <string name="scanner_retake">Retake</string>
+    <string name="scanner_use_photo">Use Photo</string>
+    <string name="scanner_page_format">Page %1$d</string>
+    <string name="scanner_mode_normal">Normal Scan</string>
+    <string name="scanner_mode_rescue">Rescue Scan</string>
+    <string name="scanner_guidance_align">Align the document within the frame</string>
+    <string name="scanner_guidance_detected">Document detected — hold steady</string>
+    <string name="scanner_guidance_move_closer">Move closer to fill the frame</string>
+    <string name="scanner_processing_rescue">Rescuing your scan — combining frames for the best result…</string>
+    <string name="scanner_processing_single">Processing…</string>
 </resources>

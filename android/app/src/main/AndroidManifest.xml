@@ -1,6 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Ads (Google Mobile Ads SDK) and no other network use -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Requested at runtime only when the user taps Scan Document / Rescue Scan -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- The app works without a camera present (import-from-gallery still functions) -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
 
     <application
       android:name=".MainApplication"
@@ -23,5 +36,23 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+
+      <!-- Full-screen native camera experience for Scan Document and Rescue Scan -->
+      <activity
+        android:name=".scanner.ScannerActivity"
+        android:exported="false"
+        android:theme="@style/ScannerTheme"
+        android:screenOrientation="portrait"
+        android:configChanges="orientation|screenSize|keyboardHidden" />
+
+      <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.fileprovider"
+        android:exported="false"
+        android:grantUriPermissions="true">
+        <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/file_paths" />
+      </provider>
     </application>
 </manifest>

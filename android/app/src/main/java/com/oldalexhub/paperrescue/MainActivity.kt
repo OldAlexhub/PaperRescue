@@ -1,4 +1,4 @@
-package com.paperrescue
+package com.oldalexhub.paperrescue
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

@@ -1,0 +1,10 @@
+<resources>
+    <color name="colorPrimary">#1E3A5F</color>
+    <color name="colorPrimaryDark">#122740</color>
+    <color name="colorRescueAccent">#FF7A29</color>
+    <color name="colorBackground">#F5F7FA</color>
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="colorScannerBackground">#0B0F14</color>
+    <color name="colorTextPrimary">#101828</color>
+    <color name="colorTextSecondary">#667085</color>
+</resources>
