@@ -156,13 +156,13 @@ object QuadGeometry {
     }
 
     fun normalize(points: Array<Point>, width: Int, height: Int): Array<Point> {
-        require(width > 0 && height > 0)
-        return Array(points.size) { i -> Point(points[i].x / width, points[i].y / height) }
+        require(width > 1 && height > 1)
+        return Array(points.size) { i -> Point(points[i].x / (width - 1.0), points[i].y / (height - 1.0)) }
     }
 
     fun denormalize(points: Array<Point>, width: Int, height: Int): Array<Point> {
-        require(width > 0 && height > 0)
-        return Array(points.size) { i -> Point(points[i].x * width, points[i].y * height) }
+        require(width > 1 && height > 1)
+        return Array(points.size) { i -> Point(points[i].x * (width - 1.0), points[i].y * (height - 1.0)) }
     }
 
     private fun cross(a: Point, b: Point, c: Point): Double =

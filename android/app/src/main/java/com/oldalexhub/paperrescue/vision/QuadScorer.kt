@@ -11,6 +11,7 @@ internal data class QuadCandidate(
     val quad: DocScanCV.Quad,
     val source: DetectionSource,
     val contourFill: Double = 1.0,
+    val signalCount: Int = 1,
 )
 
 internal data class ScoredCandidate(
@@ -104,7 +105,7 @@ internal object QuadScorer {
             DetectionSource.ML_SEGMENTATION -> 0.04
             DetectionSource.LINE_RECONSTRUCTION -> -0.015
             else -> 0.0
-        }
+        } + ((candidate.signalCount - 1) * 0.012).coerceAtMost(0.04)
 
         val total = QuadScoreModel.combine(
             areaScore,
@@ -133,6 +134,7 @@ internal object QuadScorer {
                 textureScore = textureScore,
                 temporalScore = temporalScore,
                 edgeStrengths = edgeStrengths,
+                signalCount = candidate.signalCount,
             ),
         )
     }

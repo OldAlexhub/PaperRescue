@@ -28,6 +28,7 @@ data class CandidateDiagnostics(
     val textureScore: Double,
     val temporalScore: Double,
     val edgeStrengths: List<Double>,
+    val signalCount: Int,
 )
 
 data class DetectionDiagnostics(

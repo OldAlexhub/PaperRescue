@@ -40,15 +40,18 @@ class DocumentProcessingModule(reactContext: ReactApplicationContext) :
     private fun normalizedCornersToPixels(array: ReadableArray, width: Int, height: Int): Array<Point> {
         require(array.size() == 8) { "Expected 8 numbers (4 x/y pairs)." }
         return arrayOf(
-            Point(array.getDouble(0) * width, array.getDouble(1) * height),
-            Point(array.getDouble(2) * width, array.getDouble(3) * height),
-            Point(array.getDouble(4) * width, array.getDouble(5) * height),
-            Point(array.getDouble(6) * width, array.getDouble(7) * height),
+            Point(array.getDouble(0) * (width - 1.0), array.getDouble(1) * (height - 1.0)),
+            Point(array.getDouble(2) * (width - 1.0), array.getDouble(3) * (height - 1.0)),
+            Point(array.getDouble(4) * (width - 1.0), array.getDouble(5) * (height - 1.0)),
+            Point(array.getDouble(6) * (width - 1.0), array.getDouble(7) * (height - 1.0)),
         )
     }
 
     private fun quadToNormalizedArray(quad: DocScanCV.Quad, width: Int, height: Int) = Arguments.createArray().apply {
-        quad.points.forEach { p -> pushDouble((p.x / width).coerceIn(0.0, 1.0)); pushDouble((p.y / height).coerceIn(0.0, 1.0)) }
+        quad.points.forEach { p ->
+            pushDouble((p.x / (width - 1.0)).coerceIn(0.0, 1.0))
+            pushDouble((p.y / (height - 1.0)).coerceIn(0.0, 1.0))
+        }
     }
 
     @ReactMethod

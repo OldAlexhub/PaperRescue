@@ -311,10 +311,18 @@ class ClassicalDocumentDetector : DocumentDetector {
     private fun deduplicate(candidates: List<QuadCandidate>, width: Int, height: Int): List<QuadCandidate> {
         val kept = mutableListOf<QuadCandidate>()
         for (candidate in candidates) {
-            val duplicate = kept.any {
+            val duplicateIndex = kept.indexOfFirst {
                 QuadGeometry.cornerRmsDistance(candidate.quad.points, it.quad.points, width, height) < 0.018
             }
-            if (!duplicate) kept += candidate
+            if (duplicateIndex < 0) {
+                kept += candidate
+            } else {
+                val existing = kept[duplicateIndex]
+                kept[duplicateIndex] = existing.copy(
+                    contourFill = max(existing.contourFill, candidate.contourFill),
+                    signalCount = existing.signalCount + 1,
+                )
+            }
         }
         return kept.take(64)
     }

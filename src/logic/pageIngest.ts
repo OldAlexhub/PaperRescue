@@ -74,26 +74,6 @@ export async function retakePage(pageId: string, source: CapturedSource, setting
   return rehydratePage(page, settings);
 }
 
-/**
- * Ingests pages returned by Google's ML Kit Document Scanner. Google has
- * already detected the edges, cropped and perspective-corrected each page,
- * so — unlike `ingestImportedImage` — this skips our own corner-detection
- * and warp step entirely and just runs the shared enhance/OCR/quality
- * pipeline on top of the image it handed back.
- */
-export async function ingestMlkitScannedPages(
-  docId: string,
-  imagePaths: string[],
-  settings: AppSettings,
-): Promise<Page[]> {
-  const pages: Page[] = [];
-  for (const basePath of imagePaths) {
-    const page = await finalizePage(docId, { basePath, rawPath: basePath, corners: null }, settings);
-    pages.push(page);
-  }
-  return pages;
-}
-
 /** Imports a gallery photo: best-effort auto-crop to a detected document edge, otherwise used as-is. */
 export async function ingestImportedImage(docId: string, importedPath: string, settings: AppSettings): Promise<Page> {
   const dirs = await getAppDirectories();

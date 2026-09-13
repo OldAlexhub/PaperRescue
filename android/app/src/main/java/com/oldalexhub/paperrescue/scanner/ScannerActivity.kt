@@ -118,7 +118,9 @@ class ScannerActivity : AppCompatActivity() {
 
     private val documentTracker = DocumentTracker()
     private val imageProxyTransformFactory = ImageProxyTransformFactory().apply {
-        setUsingRotationDegrees(false)
+        // Detection coordinates are in the unrotated ImageProxy buffer. Let
+        // CameraX apply imageInfo.rotationDegrees before mapping to PreviewView.
+        setUsingRotationDegrees(true)
         setUsingCropRect(true)
     }
     @Volatile private var focusConverged: Boolean? = null
@@ -551,8 +553,8 @@ class ScannerActivity : AppCompatActivity() {
     private fun normalizeQuad(quad: DocScanCV.Quad, width: Int, height: Int): DoubleArray {
         val result = DoubleArray(8)
         quad.points.forEachIndexed { i, p ->
-            result[i * 2] = (p.x / width).coerceIn(0.0, 1.0)
-            result[i * 2 + 1] = (p.y / height).coerceIn(0.0, 1.0)
+            result[i * 2] = (p.x / (width - 1.0)).coerceIn(0.0, 1.0)
+            result[i * 2 + 1] = (p.y / (height - 1.0)).coerceIn(0.0, 1.0)
         }
         return result
     }

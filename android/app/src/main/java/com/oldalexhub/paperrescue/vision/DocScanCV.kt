@@ -102,6 +102,7 @@ object DocScanCV {
     /** Perspective-corrects [src] to a flat rectangle using the 4 [quad] corners. */
     fun warpToQuad(src: Mat, quad: Quad): Mat {
         require(!src.empty()) { "Cannot warp an empty image." }
+        require(!QuadGeometry.isSelfIntersecting(quad.points)) { "Invalid document corners: self_intersection" }
         val ordered = orderCorners(quad.points)
         val validation = QuadGeometry.validate(ordered, src.cols(), src.rows())
         require(validation.valid) { "Invalid document corners: ${validation.reason}" }
