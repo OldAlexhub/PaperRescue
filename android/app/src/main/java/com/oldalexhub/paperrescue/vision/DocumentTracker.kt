@@ -3,7 +3,6 @@ package com.oldalexhub.paperrescue.vision
 import org.opencv.core.Point
 import kotlin.math.abs
 import kotlin.math.hypot
-import kotlin.math.max
 
 data class LiveFrameQuality(
     val sharpness: Double,

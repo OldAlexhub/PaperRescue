@@ -328,8 +328,8 @@ class ScannerActivity : AppCompatActivity() {
 
     /**
      * Runs on a throttled background stream purely to draw the live guide box
-     * and drive auto-capture; it is a best-effort approximation (analysis
-     * resolution can differ slightly from the preview's crop). The actual
+     * and drive auto-capture. CameraX's shared ViewPort and CoordinateTransform
+     * keep analysis coordinates aligned with the displayed preview. The actual
      * page corners used for the saved page are always re-detected from the
      * full-resolution captured photo in [processSingleCapture] / Rescue fusion.
      */
@@ -339,9 +339,8 @@ class ScannerActivity : AppCompatActivity() {
         lastAnalysisAtMs = now
         if (!OpenCVStatus.isReady) return
 
-        // Fast single-pass detection here — this runs on every live frame, so
-        // it must stay cheap. The robust multi-threshold ensemble is reserved
-        // for the actual capture (see processSingleCapture / RescueFusion).
+        // The live mode keeps a reduced multi-signal representation set; the
+        // still-capture pass adds illumination/threshold and Hough fallbacks.
         val gray = try { proxy.toGrayMat() } catch (e: Exception) { return }
         val srcW = gray.cols(); val srcH = gray.rows()
         val detection = DocScanCV.detectDocument(
@@ -409,8 +408,6 @@ class ScannerActivity : AppCompatActivity() {
                         else -> getString(R.string.scanner_guidance_detected)
                     }
 
-                    // ~150ms per tick, so 8 ticks keeps the same ~1.2s settle
-                    // time as before despite the faster analysis rate.
                     if (mode == Mode.NORMAL && tracking.readyForAutoCapture && !capturing) {
                         documentTracker.markCaptured(now)
                         onCaptureClicked()
