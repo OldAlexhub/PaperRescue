@@ -43,6 +43,7 @@ import com.oldalexhub.paperrescue.R
 import com.oldalexhub.paperrescue.util.BitmapIO
 import com.oldalexhub.paperrescue.util.Paths
 import com.oldalexhub.paperrescue.vision.DocScanCV
+import com.oldalexhub.paperrescue.vision.CaptureQuadSelector
 import com.oldalexhub.paperrescue.vision.DetectionMode
 import com.oldalexhub.paperrescue.vision.DocumentTracker
 import com.oldalexhub.paperrescue.vision.LiveFrameQuality
@@ -118,13 +119,16 @@ class ScannerActivity : AppCompatActivity() {
 
     private val documentTracker = DocumentTracker()
     private val imageProxyTransformFactory = ImageProxyTransformFactory().apply {
-        // Detection coordinates are in the unrotated ImageProxy buffer. Let
-        // CameraX apply imageInfo.rotationDegrees before mapping to PreviewView.
+        // toGrayMat applies imageInfo.rotationDegrees to the pixels, so the
+        // detection coordinates and this rotation-aware transform agree.
         setUsingRotationDegrees(true)
         setUsingCropRect(true)
     }
     @Volatile private var focusConverged: Boolean? = null
     @Volatile private var exposureConverged: Boolean? = null
+    @Volatile private var latestAnalysisNormalizedQuad: DocScanCV.Quad? = null
+    @Volatile private var latestAnalysisConfidence = 0.0
+    @Volatile private var latestAnalysisStable = false
     private var latestDocumentCenterInView: PointF? = null
     private var lastDetectionConfidence = 0.0
     private var lastAutoCropSucceeded = true
@@ -365,6 +369,9 @@ class ScannerActivity : AppCompatActivity() {
         )
         val analysisTransform = try { imageProxyTransformFactory.getOutputTransform(proxy) } catch (_: Exception) { null }
         val quad = tracking.smoothedQuad
+        val normalizedTrackingQuad = quad?.let {
+            DocScanCV.Quad(QuadGeometry.normalize(it.points, srcW, srcH))
+        }
         val imageArea = (srcW * srcH).toDouble()
 
         if (BuildConfig.DEBUG) {
@@ -389,14 +396,27 @@ class ScannerActivity : AppCompatActivity() {
                     }
                     CoordinateTransform(analysisTransform, previewTransform).mapPoints(coordinates)
                     Array(4) { i -> Point(coordinates[i * 2].toDouble(), coordinates[i * 2 + 1].toDouble()) }
+                        .takeIf {
+                            QuadGeometry.validate(
+                                it,
+                                previewView.width,
+                                previewView.height,
+                                boundsTolerance = 6.0,
+                            ).valid
+                        }
                 } catch (_: Exception) { null }
             } else null
             overlayView.setQuad(mapped)
+            // Never reuse or auto-capture from coordinates whose preview mapping
+            // is invalid/off-screen; that was the visible L-shaped failure mode.
+            latestAnalysisNormalizedQuad = if (mapped == null) null else normalizedTrackingQuad
+            latestAnalysisConfidence = if (mapped == null) 0.0 else detection.confidence
+            latestAnalysisStable = mapped != null && tracking.stableFrameCount >= 3
             latestDocumentCenterInView = mapped?.let { points ->
                 PointF(points.sumOf { it.x }.toFloat() / 4f, points.sumOf { it.y }.toFloat() / 4f)
             }
             lastDetectionConfidence = detection.confidence
-            if (quad == null) {
+            if (quad == null || mapped == null) {
                 guidanceText.text = getString(R.string.scanner_guidance_align)
             } else {
                 val area = areaOf(quad.points)
@@ -518,10 +538,24 @@ class ScannerActivity : AppCompatActivity() {
         val bitmap = BitmapIO.loadBitmap(file.absolutePath, BitmapIO.MAX_PAGE_DIMENSION)
         val mat = BitmapIO.bitmapToMat(bitmap)
         org.opencv.imgproc.Imgproc.cvtColor(mat, mat, org.opencv.imgproc.Imgproc.COLOR_RGBA2BGR)
-        val detection = DocScanCV.detectDocumentScaled(mat)
-        val initialQuad = detection.quad ?: insetFrameQuad(mat.cols(), mat.rows())
+        // Preview analysis and ImageCapture share a ViewPort and target rotation.
+        // Carry the stable normalized live quad into still detection so it can be
+        // re-scored against the captured pixels and compete with internal rectangles.
+        val trackedPrior = latestAnalysisNormalizedQuad?.let {
+            DocScanCV.Quad(QuadGeometry.denormalize(it.points, mat.cols(), mat.rows()))
+        }
+        val detection = DocScanCV.detectDocumentScaled(mat, previousQuad = trackedPrior)
+        val selection = CaptureQuadSelector.select(
+            detection = detection,
+            trackedPrior = trackedPrior,
+            trackedConfidence = latestAnalysisConfidence,
+            trackedStable = latestAnalysisStable,
+            width = mat.cols(),
+            height = mat.rows(),
+        )
+        val initialQuad = selection.quad ?: insetFrameQuad(mat.cols(), mat.rows())
         val refinement = QuadRefiner.refineDocumentQuad(mat, initialQuad)
-        val output = if (detection.isConfident) DocScanCV.warpToQuad(mat, refinement.quad) else mat.clone()
+        val output = if (selection.autoCropAllowed) DocScanCV.warpToQuad(mat, refinement.quad) else mat.clone()
         val rgba = com.oldalexhub.paperrescue.modules.DocumentProcessingModule.toRgba(output)
         val outBitmap = BitmapIO.matToBitmap(rgba)
         val outFile = File(Paths.capturesDir(this), "${Paths.newId()}_corrected.jpg")
@@ -532,11 +566,12 @@ class ScannerActivity : AppCompatActivity() {
                 TAG,
                 "still confidence=${detection.confidence} source=${detection.source} " +
                     "candidates=${detection.diagnostics.candidateCount} refined=${refinement.refined} " +
-                    "refineReason=${refinement.reason} edgeShift=${refinement.meanEdgeShiftPixels}",
+                    "selection=${selection.reason} refineReason=${refinement.reason} " +
+                    "edgeShift=${refinement.meanEdgeShiftPixels}",
             )
         }
         mat.release(); output.release(); rgba.release(); bitmap.recycle(); outBitmap.recycle()
-        return CaptureProcessingResult(outFile.absolutePath, normalized, detection.confidence, detection.isConfident)
+        return CaptureProcessingResult(outFile.absolutePath, normalized, selection.confidence, selection.autoCropAllowed)
     }
 
     private fun insetFrameQuad(width: Int, height: Int): DocScanCV.Quad {
@@ -619,6 +654,9 @@ class ScannerActivity : AppCompatActivity() {
         lastDetectionConfidence = 0.0
         lastAutoCropSucceeded = true
         latestDocumentCenterInView = null
+        latestAnalysisNormalizedQuad = null
+        latestAnalysisConfidence = 0.0
+        latestAnalysisStable = false
         documentTracker.reset()
         setUiState(UiState.LIVE)
     }

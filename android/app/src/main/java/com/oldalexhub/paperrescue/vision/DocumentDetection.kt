@@ -12,6 +12,7 @@ enum class DetectionSource {
     ADAPTIVE_THRESHOLD,
     SCHARR,
     LINE_RECONSTRUCTION,
+    TRACKED_PRIOR,
     ML_SEGMENTATION,
     NONE,
 }

@@ -43,10 +43,20 @@ class ClassicalDocumentDetector : DocumentDetector {
             for (representation in representations) {
                 rawCandidates += contourCandidates(representation.mat, representation.source, image.cols(), image.rows(), mode)
             }
+            // A stable live quad is valuable evidence on the immediately following
+            // full-resolution capture. Re-score it against the captured pixels instead
+            // of discarding that temporal information and selecting an internal box.
+            if (mode == DetectionMode.STILL && previousQuad != null &&
+                QuadGeometry.validate(previousQuad.points, image.cols(), image.rows()).valid
+            ) {
+                rawCandidates += QuadCandidate(previousQuad, DetectionSource.TRACKED_PRIOR, contourFill = 0.96)
+            }
             val deduplicated = deduplicate(rawCandidates, image.cols(), image.rows())
 
-            val needLineFallback = mode == DetectionMode.STILL && deduplicated.size < 4
-            val withLines = if (needLineFallback) {
+            // Still capture can afford line reconstruction. Running it regardless of
+            // contour count prevents numerous text boxes from suppressing recovery of
+            // a page whose outer contour has one weak or interrupted edge.
+            val withLines = if (mode == DetectionMode.STILL) {
                 deduplicate(deduplicated + lineCandidates(representations, image.cols(), image.rows()), image.cols(), image.rows())
             } else deduplicated
 

@@ -103,6 +103,7 @@ internal object QuadScorer {
             DetectionSource.ADAPTIVE_CANNY, DetectionSource.CLAHE_CANNY -> 0.025
             DetectionSource.ILLUMINATION_CANNY -> 0.02
             DetectionSource.ML_SEGMENTATION -> 0.04
+            DetectionSource.TRACKED_PRIOR -> 0.035
             DetectionSource.LINE_RECONSTRUCTION -> -0.015
             else -> 0.0
         } + ((candidate.signalCount - 1) * 0.012).coerceAtMost(0.04)

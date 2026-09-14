@@ -1,12 +1,14 @@
 package com.oldalexhub.paperrescue.scanner
 
 import androidx.camera.core.ImageProxy
+import org.opencv.core.Core
 import org.opencv.core.Mat
 import org.opencv.core.CvType
 
 /**
  * Extracts the Y (luma) plane of a YUV_420_888 camera frame as a grayscale
- * Mat in crop-rect coordinates. CameraX maps those coordinates into PreviewView;
+ * Mat in crop-rect coordinates, rotated into the use case's display orientation.
+ * CameraX can then map those rotated coordinates into PreviewView exactly;
  * luma alone keeps the live-preview analysis pass fast and allocation-light.
  */
 fun ImageProxy.toGrayMat(): Mat {
@@ -30,5 +32,14 @@ fun ImageProxy.toGrayMat(): Mat {
         }
         packed.put(row, 0, tightRow)
     }
-    return packed
+    val rotateCode = when (imageInfo.rotationDegrees) {
+        90 -> Core.ROTATE_90_CLOCKWISE
+        180 -> Core.ROTATE_180
+        270 -> Core.ROTATE_90_COUNTERCLOCKWISE
+        else -> return packed
+    }
+    val rotated = Mat()
+    Core.rotate(packed, rotated, rotateCode)
+    packed.release()
+    return rotated
 }
